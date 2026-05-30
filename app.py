@@ -1,60 +1,179 @@
-
 import streamlit as st
-import numpy as np
 import tensorflow as tf
+import numpy as np
 import joblib
+import gdown
+import os
 
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
+# =====================================================
+# PAGE CONFIG
+# =====================================================
+
 st.set_page_config(
-    page_title="Fake News Detection",
+    page_title="Fake News Detection Platform",
     page_icon="📰",
     layout="wide"
 )
 
-model = tf.keras.models.load_model(
-    "fake_news_lstm_model.h5",
-    compile=False
-)
+# =====================================================
+# FILE PATHS
+# =====================================================
 
-tokenizer = joblib.load(
-    "tokenizer.pkl"
-)
+MODEL_FILE = "fake_news_lstm_model.h5"
+TOKENIZER_FILE = "tokenizer.pkl"
+
+# =====================================================
+# DOWNLOAD MODEL FROM GOOGLE DRIVE
+# =====================================================
+
+if not os.path.exists(MODEL_FILE):
+
+    with st.spinner("Downloading AI Model..."):
+
+        file_id = "11lHhuDarxYmFDH3tT2zlqWxHkwlrEI2H"
+
+        url = f"https://drive.google.com/uc?id={file_id}"
+
+        gdown.download(
+            url,
+            MODEL_FILE,
+            quiet=False
+        )
+
+# =====================================================
+# CHECK TOKENIZER
+# =====================================================
+
+if not os.path.exists(TOKENIZER_FILE):
+
+    st.error(
+        "tokenizer.pkl file not found."
+    )
+
+    st.stop()
+
+# =====================================================
+# LOAD MODEL
+# =====================================================
+
+@st.cache_resource
+def load_model():
+
+    return tf.keras.models.load_model(
+        MODEL_FILE,
+        compile=False
+    )
+
+@st.cache_resource
+def load_tokenizer():
+
+    return joblib.load(
+        TOKENIZER_FILE
+    )
+
+try:
+
+    model = load_model()
+
+    tokenizer = load_tokenizer()
+
+except Exception as e:
+
+    st.error(
+        f"Error Loading Files: {e}"
+    )
+
+    st.stop()
+
+# =====================================================
+# SETTINGS
+# =====================================================
 
 MAX_LEN = 300
 
-st.title(
-    "📰 Fake News Detection Platform"
+# =====================================================
+# TITLE
+# =====================================================
+
+st.title("📰 Fake News Detection Platform")
+
+st.markdown(
+    """
+    Detect whether a news article is **REAL** or **FAKE**
+    using an LSTM Deep Learning Model.
+    """
 )
+
+# =====================================================
+# INPUT
+# =====================================================
 
 article = st.text_area(
-    "Enter News Article"
+    "Enter News Article",
+    height=250
 )
 
-if st.button(
-    "Detect"
-):
+# =====================================================
+# PREDICTION
+# =====================================================
 
-    seq = tokenizer.texts_to_sequences(
-        [article]
-    )
+if st.button("Detect News"):
 
-    padded = pad_sequences(
-        seq,
-        maxlen=MAX_LEN,
-        padding="post"
-    )
+    if article.strip() == "":
 
-    pred = model.predict(
-        padded,
-        verbose=0
-    )[0][0]
+        st.warning(
+            "Please enter a news article."
+        )
 
-    if pred > 0.5:
-        st.success("✅ REAL NEWS")
     else:
-        st.error("❌ FAKE NEWS")
 
-    st.write(
-        f"Confidence: {max(pred,1-pred):.2%}"
-    )
+        sequence = tokenizer.texts_to_sequences(
+            [article]
+        )
+
+        padded = pad_sequences(
+            sequence,
+            maxlen=MAX_LEN,
+            padding="post"
+        )
+
+        prediction = model.predict(
+            padded,
+            verbose=0
+        )[0][0]
+
+        confidence = max(
+            prediction,
+            1 - prediction
+        )
+
+        st.subheader("Prediction")
+
+        if prediction >= 0.5:
+
+            st.success(
+                "✅ REAL NEWS"
+            )
+
+        else:
+
+            st.error(
+                "❌ FAKE NEWS"
+            )
+
+        st.metric(
+            "Confidence Score",
+            f"{confidence:.2%}"
+        )
+
+# =====================================================
+# FOOTER
+# =====================================================
+
+st.markdown("---")
+
+st.caption(
+    "Deep Learning Assignment 7 - Fake News Detection using LSTM"
+)
